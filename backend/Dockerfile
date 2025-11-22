@@ -2,6 +2,9 @@
 # Dockerfile برای پارس‌پک PaaS
 # این فایل باید در: backend/Dockerfile
 # =====================================
+# =====================================
+# Dockerfile برای پارس‌پک PaaS
+# =====================================
 
 FROM python:3.11-slim
 
@@ -30,8 +33,9 @@ RUN pip install --upgrade pip && \
 
 # کپی کد اپلیکیشن
 COPY ./app ./app
-COPY ./alembic ./alembic
-COPY ./alembic.ini ./alembic.ini
+
+# کپی alembic اگر وجود داشت (اختیاری)
+COPY ./alembic ./alembic 2>/dev/null || echo "Alembic not found, skipping..."
 
 # ایجاد دایرکتوری‌های مورد نیاز
 RUN mkdir -p /app/logs /app/uploads && \
@@ -48,7 +52,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 EXPOSE 8000
 
 # دستور اجرا
-# استفاده از gunicorn با uvicorn workers
 CMD ["gunicorn", "app.main:app", \
     "--workers", "4", \
     "--worker-class", "uvicorn.workers.UvicornWorker", \
