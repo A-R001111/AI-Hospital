@@ -1,16 +1,15 @@
 # =====================================
-# Dockerfile برای پارس‌پک PaaS
-# این فایل باید در: backend/Dockerfile
+# Dockerfile for Parspack PaaS
 # =====================================
 
 FROM python:3.11-slim
 
-# متغیرهای محیطی Python
+# Environment Variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
-# نصب dependencies سیستمی
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
@@ -20,24 +19,27 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# تنظیم working directory
+# Set working directory
 WORKDIR /app
 
-# کپی requirements و نصب
-COPY requirements.txt .
+# Copy requirements first (for caching)
+COPY backend/requirements.txt .
+
+# Install Python dependencies
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# کپی کد اپلیکیشن
-COPY ./app ./app
-COPY ./alembic ./alembic
-COPY ./alembic.ini ./alembic.ini
+# Copy backend code
+COPY backend/app ./app
 
-# ایجاد دایرکتوری‌های مورد نیاز
+# Copy frontend (optional)
+COPY frontend ./frontend
+
+# Create directories
 RUN mkdir -p /app/logs /app/uploads && \
     chmod -R 755 /app/logs /app/uploads
 
-# تنظیم PYTHONPATH
+# Set PYTHONPATH
 ENV PYTHONPATH=/app
 
 # Health check
@@ -47,8 +49,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# دستور اجرا
-# استفاده از gunicorn با uvicorn workers
+# Run application
 CMD ["gunicorn", "app.main:app", \
     "--workers", "4", \
     "--worker-class", "uvicorn.workers.UvicornWorker", \

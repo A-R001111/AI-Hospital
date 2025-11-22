@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Environment
+.env
+.env.*
+*.env
+
+# Logs
+logs/
+*.log
+
+# Tests
+tests/
+.pytest_cache/
+.coverage
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+DEMO_README.md
+SUMMARY.md
+ARCHITECTURE.md
+
+# Docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile.backup
+
+# Uploads
+uploads/
+media/
+
+# Misc
+.DS_Store
+Thumbs.db
+```
+
+### گام 3️⃣: تنظیمات پارس‌پک
+
+وقتی در پنل پارس‌پک اپلیکیشن را ایجاد می‌کنید:
+
+#### A. تنظیمات Repository
+```
+Repository URL: https://github.com/YOUR-USERNAME/AI-Hospital
+Branch: main
+```
+
+#### B. تنظیمات Build
+```
+Dockerfile Path: Dockerfile
+Build Context: ./
+Build Args: (خالی بگذارید)
+```
+
+#### C. تنظیمات Port
+```
+Container Port: 8000
