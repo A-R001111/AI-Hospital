@@ -1,0 +1,163 @@
+# ===================================
+# Python
+# ===================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ===================================
+# Virtual Environments
+# ===================================
+venv/
+ENV/
+env/
+.venv/
+env.bak/
+venv.bak/
+
+# ===================================
+# Environment Variables
+# ===================================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ===================================
+# IDEs
+# ===================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# ===================================
+# Logs
+# ===================================
+logs/
+*.log
+*.log.*
+
+# ===================================
+# Database
+# ===================================
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+
+# ===================================
+# Uploads & Media
+# ===================================
+uploads/
+media/
+static/uploads/
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.webm
+
+# ===================================
+# Testing
+# ===================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===================================
+# MyPy
+# ===================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ===================================
+# Jupyter Notebook
+# ===================================
+.ipynb_checkpoints
+
+# ===================================
+# Docker
+# ===================================
+docker-compose.override.yml
+
+# ===================================
+# Temporary Files
+# ===================================
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# ===================================
+# macOS
+# ===================================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ===================================
+# Windows
+# ===================================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ===================================
+# Alembic
+# ===================================
+# alembic/versions/*.py  # uncomment اگر نمی‌خواهید migrations رو commit کنید
+
+# ===================================
+# SSL Certificates (if stored locally)
+# ===================================
+*.pem
+*.key
+*.crt
+*.cer
+
+# ===================================
+# Backup Files
+# ===================================
+backups/
+*.backup
+*.bak
+
+# ===================================
+# Node Modules (اگر از npm استفاده کنید)
+# ===================================
+node_modules/
+package-lock.json
+yarn.lock
