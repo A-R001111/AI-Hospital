@@ -32,16 +32,8 @@ COPY backend/requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-<<<<<<< HEAD
 # Copy backend code
 COPY backend/app ./app
-=======
-# کپی کد اپلیکیشن
-COPY ./app ./app
-
-# کپی alembic اگر وجود داشت (اختیاری)
-COPY ./alembic ./alembic 2>/dev/null || echo "Alembic not found, skipping..."
->>>>>>> 682c136af2e9b7049333c32521815ca18eaa1f1a
 
 # Copy frontend (optional)
 COPY frontend ./frontend
@@ -60,11 +52,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-<<<<<<< HEAD
 # Run application
-=======
-# دستور اجرا
->>>>>>> 682c136af2e9b7049333c32521815ca18eaa1f1a
 CMD ["gunicorn", "app.main:app", \
     "--workers", "4", \
     "--worker-class", "uvicorn.workers.UvicornWorker", \
