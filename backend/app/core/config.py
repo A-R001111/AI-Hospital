@@ -1,11 +1,8 @@
 """
 ================================================================================
-تنظیمات و کانفیگ اپلیکیشن
+تنظیمات و کانفیگ اپلیکیشن - نسخه آفلاین
 ================================================================================
-این ماژول تمام تنظیمات اپلیکیشن را از متغیرهای محیطی می‌خواند و
-به صورت type-safe در دسترس قرار می‌دهد.
-
-استفاده از Pydantic Settings برای validation و type checking
+این نسخه بدون نیاز به OpenAI API Key است
 ================================================================================
 """
 
@@ -13,257 +10,163 @@ import secrets
 from typing import List, Optional
 from functools import lru_cache
 
-from pydantic import Field, validator, PostgresDsn
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    کلاس تنظیمات اپلیکیشن
-    
-    تمام تنظیمات از متغیرهای محیطی یا فایل .env خوانده می‌شوند.
-    
-    Attributes:
-        APP_NAME: نام اپلیکیشن
-        APP_VERSION: نسخه اپلیکیشن
-        ENVIRONMENT: محیط اجرا (development, staging, production)
-        DEBUG: حالت دیباگ
-    """
+    """کلاس تنظیمات اپلیکیشن - نسخه آفلاین"""
     
     # ========================================
-    # تنظیمات کلی Application
+    # Application
     # ========================================
     APP_NAME: str = Field(
         default="سامانه گزارش‌نویسی پرستاران",
         description="نام اپلیکیشن"
     )
-    APP_VERSION: str = Field(
-        default="1.0.0",
-        description="نسخه اپلیکیشن"
-    )
-    ENVIRONMENT: str = Field(
-        default="development",
-        description="محیط اجرا: development, staging, production"
-    )
-    DEBUG: bool = Field(
-        default=False,
-        description="حالت دیباگ (فقط در development True باشد)"
-    )
+    APP_VERSION: str = Field(default="1.0.0")
+    ENVIRONMENT: str = Field(default="development")
+    DEBUG: bool = Field(default=False)
     
     # ========================================
-    # تنظیمات Server
+    # Server
     # ========================================
-    HOST: str = Field(
-        default="0.0.0.0",
-        description="آدرس IP برای bind شدن سرور"
-    )
-    PORT: int = Field(
-        default=8000,
-        ge=1000,
-        le=65535,
-        description="پورت سرور"
-    )
-    WORKERS: int = Field(
-        default=4,
-        ge=1,
-        le=32,
-        description="تعداد worker processes"
-    )
+    HOST: str = Field(default="0.0.0.0")
+    PORT: int = Field(default=8000, ge=1000, le=65535)
+    WORKERS: int = Field(default=4, ge=1, le=32)
     
     # ========================================
-    # تنظیمات Database
+    # Database
     # ========================================
-    DATABASE_URL: PostgresDsn = Field(
-        description="آدرس اتصال به دیتابیس PostgreSQL"
+    DATABASE_URL: str = Field(
+        default="postgresql+asyncpg://hospitaluser:hospitalpass@localhost:5432/hospital_reports",
+        description="آدرس دیتابیس"
     )
-    DATABASE_POOL_SIZE: int = Field(
-        default=20,
-        ge=5,
-        le=100,
-        description="تعداد connection pool"
-    )
-    DATABASE_MAX_OVERFLOW: int = Field(
-        default=10,
-        ge=0,
-        le=50,
-        description="حداکثر تعداد connection اضافی"
-    )
-    DATABASE_ECHO: bool = Field(
-        default=False,
-        description="نمایش SQL queries در لاگ"
-    )
+    DATABASE_POOL_SIZE: int = Field(default=20, ge=5, le=100)
+    DATABASE_MAX_OVERFLOW: int = Field(default=10, ge=0, le=50)
+    DATABASE_ECHO: bool = Field(default=False)
     
     # ========================================
-    # تنظیمات Security
+    # Security
     # ========================================
     SECRET_KEY: str = Field(
         default_factory=lambda: secrets.token_urlsafe(32),
-        min_length=32,
-        description="کلید امنیتی برای JWT و رمزنگاری"
+        min_length=32
     )
-    ALGORITHM: str = Field(
-        default="HS256",
-        description="الگوریتم رمزنگاری JWT"
+    ALGORITHM: str = Field(default="HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, ge=5, le=1440)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, ge=1, le=30)
+    
+    # ========================================
+    # CORS
+    # ========================================
+    CORS_ORIGINS: str = Field(
+        default="http://localhost:3000,http://localhost:8000"
     )
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30,
-        ge=5,
-        le=1440,
-        description="مدت اعتبار access token (دقیقه)"
+    CORS_ALLOW_CREDENTIALS: bool = Field(default=True)
+    CORS_ALLOW_METHODS: str = Field(default="*")
+    CORS_ALLOW_HEADERS: str = Field(default="*")
+    
+    # ========================================
+    # Whisper آفلاین (بدون نیاز به API Key!)
+    # ========================================
+    WHISPER_MODEL_SIZE: str = Field(
+        default="base",
+        description="سایز مدل Whisper: tiny, base, small, medium, large"
     )
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
-        default=7,
-        ge=1,
-        le=30,
-        description="مدت اعتبار refresh token (روز)"
+    WHISPER_DEVICE: str = Field(
+        default="cpu",
+        description="دستگاه: cpu یا cuda (GPU)"
     )
     
     # ========================================
-    # تنظیمات CORS
+    # Redis
     # ========================================
-    CORS_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"],
-        description="لیست originهای مجاز برای CORS"
-    )
-    CORS_ALLOW_CREDENTIALS: bool = Field(
-        default=True,
-        description="اجازه ارسال credentials در CORS"
-    )
-    CORS_ALLOW_METHODS: List[str] = Field(
-        default=["*"],
-        description="متدهای HTTP مجاز"
-    )
-    CORS_ALLOW_HEADERS: List[str] = Field(
-        default=["*"],
-        description="headerهای مجاز"
-    )
+    REDIS_HOST: str = Field(default="localhost")
+    REDIS_PORT: int = Field(default=6379, ge=1, le=65535)
+    REDIS_DB: int = Field(default=0, ge=0, le=15)
+    REDIS_PASSWORD: Optional[str] = Field(default=None)
+    REDIS_DECODE_RESPONSES: bool = Field(default=True)
     
     # ========================================
-    # تنظیمات OpenAI
+    # File Upload
     # ========================================
-    OPENAI_API_KEY: str = Field(
-        description="کلید API OpenAI برای Whisper"
-    )
-    OPENAI_MODEL: str = Field(
-        default="whisper-1",
-        description="مدل Whisper"
-    )
-    OPENAI_ORGANIZATION: Optional[str] = Field(
-        default=None,
-        description="Organization ID در OpenAI (اختیاری)"
-    )
+    MAX_UPLOAD_SIZE: int = Field(default=10485760, ge=1048576, le=104857600)
+    ALLOWED_AUDIO_FORMATS: str = Field(default="wav,mp3,m4a,ogg,webm,flac")
+    UPLOAD_DIR: str = Field(default="uploads/audio")
     
     # ========================================
-    # تنظیمات Redis
+    # Rate Limiting
     # ========================================
-    REDIS_HOST: str = Field(
-        default="localhost",
-        description="آدرس سرور Redis"
-    )
-    REDIS_PORT: int = Field(
-        default=6379,
-        ge=1,
-        le=65535,
-        description="پورت Redis"
-    )
-    REDIS_DB: int = Field(
-        default=0,
-        ge=0,
-        le=15,
-        description="شماره دیتابیس Redis"
-    )
-    REDIS_PASSWORD: Optional[str] = Field(
-        default=None,
-        description="رمز عبور Redis (اختیاری)"
-    )
-    REDIS_DECODE_RESPONSES: bool = Field(
-        default=True,
-        description="تبدیل خودکار bytes به string"
-    )
+    RATE_LIMIT_PER_MINUTE: int = Field(default=60, ge=10, le=1000)
+    RATE_LIMIT_PER_HOUR: int = Field(default=1000, ge=100, le=10000)
     
     # ========================================
-    # تنظیمات File Upload
+    # Logging
     # ========================================
-    MAX_UPLOAD_SIZE: int = Field(
-        default=10485760,  # 10MB
-        ge=1048576,  # حداقل 1MB
-        le=104857600,  # حداکثر 100MB
-        description="حداکثر سایز فایل آپلود (bytes)"
-    )
-    ALLOWED_AUDIO_FORMATS: List[str] = Field(
-        default=["wav", "mp3", "m4a", "ogg", "webm"],
-        description="فرمت‌های مجاز فایل صوتی"
-    )
-    UPLOAD_DIR: str = Field(
-        default="uploads/audio",
-        description="مسیر ذخیره فایل‌های آپلود شده"
-    )
-    
-    # ========================================
-    # تنظیمات Rate Limiting
-    # ========================================
-    RATE_LIMIT_PER_MINUTE: int = Field(
-        default=60,
-        ge=10,
-        le=1000,
-        description="حداکثر تعداد درخواست در دقیقه"
-    )
-    RATE_LIMIT_PER_HOUR: int = Field(
-        default=1000,
-        ge=100,
-        le=10000,
-        description="حداکثر تعداد درخواست در ساعت"
-    )
-    
-    # ========================================
-    # تنظیمات Logging
-    # ========================================
-    LOG_LEVEL: str = Field(
-        default="INFO",
-        description="سطح لاگ: DEBUG, INFO, WARNING, ERROR, CRITICAL"
-    )
-    LOG_FILE: str = Field(
-        default="logs/app.log",
-        description="مسیر فایل لاگ"
-    )
-    LOG_FORMAT: str = Field(
-        default="json",
-        description="فرمت لاگ: json یا text"
-    )
+    LOG_LEVEL: str = Field(default="INFO")
+    LOG_FILE: str = Field(default="logs/app.log")
+    LOG_FORMAT: str = Field(default="json")
     
     # ========================================
     # Validators
     # ========================================
     
-    @validator("CORS_ORIGINS", pre=True)
+    @field_validator("CORS_ORIGINS")
+    @classmethod
     def parse_cors_origins(cls, v):
-        """تبدیل string با کاما به لیست"""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
     
-    @validator("ALLOWED_AUDIO_FORMATS", pre=True)
+    @field_validator("ALLOWED_AUDIO_FORMATS")
+    @classmethod
     def parse_audio_formats(cls, v):
-        """تبدیل string با کاما به لیست"""
         if isinstance(v, str):
             return [fmt.strip().lower() for fmt in v.split(",")]
         return v
     
-    @validator("ENVIRONMENT")
+    @field_validator("CORS_ALLOW_METHODS")
+    @classmethod
+    def parse_allow_methods(cls, v):
+        if v == "*":
+            return ["*"]
+        if isinstance(v, str):
+            return [method.strip().upper() for method in v.split(",")]
+        return v
+    
+    @field_validator("CORS_ALLOW_HEADERS")
+    @classmethod
+    def parse_allow_headers(cls, v):
+        if v == "*":
+            return ["*"]
+        if isinstance(v, str):
+            return [header.strip() for header in v.split(",")]
+        return v
+    
+    @field_validator("ENVIRONMENT")
+    @classmethod
     def validate_environment(cls, v):
-        """بررسی اعتبار محیط اجرا"""
         allowed = ["development", "staging", "production"]
         if v not in allowed:
             raise ValueError(f"ENVIRONMENT باید یکی از {allowed} باشد")
         return v
     
-    @validator("LOG_LEVEL")
+    @field_validator("LOG_LEVEL")
+    @classmethod
     def validate_log_level(cls, v):
-        """بررسی اعتبار سطح لاگ"""
         allowed = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in allowed:
             raise ValueError(f"LOG_LEVEL باید یکی از {allowed} باشد")
         return v.upper()
+    
+    @field_validator("WHISPER_MODEL_SIZE")
+    @classmethod
+    def validate_whisper_model(cls, v):
+        allowed = ["tiny", "base", "small", "medium", "large"]
+        if v not in allowed:
+            raise ValueError(f"WHISPER_MODEL_SIZE باید یکی از {allowed} باشد")
+        return v
     
     # ========================================
     # Properties
@@ -271,17 +174,14 @@ class Settings(BaseSettings):
     
     @property
     def is_development(self) -> bool:
-        """آیا محیط development است؟"""
         return self.ENVIRONMENT == "development"
     
     @property
     def is_production(self) -> bool:
-        """آیا محیط production است؟"""
         return self.ENVIRONMENT == "production"
     
     @property
     def database_url_str(self) -> str:
-        """تبدیل DATABASE_URL به string"""
         return str(self.DATABASE_URL)
     
     # ========================================
@@ -292,24 +192,13 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore"  # نادیده گرفتن متغیرهای اضافی
+        extra="ignore"
     )
 
 
 @lru_cache()
 def get_settings() -> Settings:
-    """
-    دریافت تنظیمات اپلیکیشن (با cache)
-    
-    استفاده از lru_cache برای جلوگیری از خواندن مکرر فایل .env
-    
-    Returns:
-        Settings: شیء تنظیمات
-        
-    Example:
-        >>> settings = get_settings()
-        >>> print(settings.APP_NAME)
-    """
+    """دریافت تنظیمات (با cache)"""
     return Settings()
 
 
@@ -318,5 +207,4 @@ def get_settings() -> Settings:
 # ========================================
 settings = get_settings()
 
-# Export شده برای استفاده در سایر ماژول‌ها
 __all__ = ["Settings", "settings", "get_settings"]

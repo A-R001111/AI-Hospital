@@ -1,14 +1,14 @@
 """
 ================================================================================
-Voice-to-Text Service
+Voice-to-Text Service - نسخه آفلاین
 ================================================================================
-این سرویس تبدیل صدا به متن را با استفاده از OpenAI Whisper API انجام می‌دهد.
+این سرویس از Whisper آفلاین استفاده می‌کند (بدون نیاز به OpenAI API)
 
 ویژگی‌ها:
-- پشتیبانی از فرمت‌های مختلف صوتی
-- تبدیل با دقت بالا
-- پردازش async
-- Error handling جامع
+- استفاده از مدل Whisper آفلاین
+- پشتیبانی عالی از فارسی
+- کاملاً رایگان
+- بدون نیاز به اینترنت برای transcription
 ================================================================================
 """
 
@@ -17,7 +17,7 @@ import aiofiles
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
-import openai
+import whisper
 from fastapi import UploadFile, HTTPException, status
 
 from app.core.config import settings
@@ -25,9 +25,9 @@ from app.core.config import settings
 
 class VoiceService:
     """
-    سرویس تبدیل صدا به متن
+    سرویس تبدیل صدا به متن - نسخه آفلاین
     
-    استفاده از OpenAI Whisper API برای transcription
+    استفاده از Whisper local model
     """
     
     # فرمت‌های مجاز
@@ -37,12 +37,33 @@ class VoiceService:
     MAX_FILE_SIZE = 10 * 1024 * 1024
     
     def __init__(self):
-        """تنظیم OpenAI API"""
-        openai.api_key = settings.OPENAI_API_KEY
+        """
+        تنظیم و بارگذاری مدل Whisper
         
-        # ایجاد دایرکتوری uploads اگر وجود ندارد
+        مدل‌های موجود:
+        - tiny: سریع، دقت کم (~1GB RAM)
+        - base: متوسط (~1GB RAM) ← پیشنهادی برای شروع
+        - small: خوب (~2GB RAM)
+        - medium: عالی (~5GB RAM)
+        - large: بهترین (~10GB RAM)
+        """
+        # ایجاد دایرکتوری uploads
         self.upload_dir = Path(settings.UPLOAD_DIR)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # بارگذاری مدل Whisper
+        # برای شروع از base استفاده می‌کنیم (تعادل خوب بین سرعت و دقت)
+        model_size = os.environ.get("WHISPER_MODEL_SIZE", "base")
+        
+        print(f"🔄 در حال بارگذاری مدل Whisper ({model_size})...")
+        try:
+            self.model = whisper.load_model(model_size)
+            print(f"✅ مدل Whisper بارگذاری شد: {model_size}")
+        except Exception as e:
+            print(f"❌ خطا در بارگذاری مدل: {e}")
+            # اگر مدل لود نشد، به tiny برگرد (کوچک‌ترین)
+            print("⚠️ تلاش برای بارگذاری مدل tiny...")
+            self.model = whisper.load_model("tiny")
     
     def validate_audio_file(self, file: UploadFile) -> None:
         """
@@ -67,7 +88,7 @@ class VoiceService:
                 detail=f"فرمت فایل باید یکی از {', '.join(self.ALLOWED_FORMATS)} باشد"
             )
         
-        # بررسی سایز (اگر در دسترس باشد)
+        # بررسی سایز
         if hasattr(file, "size") and file.size:
             if file.size > self.MAX_FILE_SIZE:
                 max_mb = self.MAX_FILE_SIZE / (1024 * 1024)
@@ -89,17 +110,14 @@ class VoiceService:
             report_id: شناسه گزارش
             
         Returns:
-            Dict حاوی:
-                - file_path: مسیر فایل ذخیره شده
-                - file_size: سایز فایل (بایت)
-                - file_extension: پسوند فایل
+            Dict حاوی اطلاعات فایل
         """
-        # ساخت نام یکتا برای فایل
+        # ساخت نام یکتا
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         file_extension = file.filename.split(".")[-1].lower()
         filename = f"{report_id}_{timestamp}.{file_extension}"
         
-        # مسیر کامل فایل
+        # مسیر کامل
         file_path = self.upload_dir / filename
         
         # ذخیره فایل
@@ -121,7 +139,7 @@ class VoiceService:
         language: str = "fa"
     ) -> Dict[str, Any]:
         """
-        تبدیل فایل صوتی به متن با Whisper API
+        تبدیل فایل صوتی به متن با Whisper آفلاین
         
         Args:
             file_path: مسیر فایل صوتی
@@ -130,112 +148,92 @@ class VoiceService:
         Returns:
             Dict حاوی:
                 - text: متن تبدیل شده
-                - confidence: میزان اطمینان (تقریبی)
-                - duration: مدت زمان صدا (اگر در دسترس باشد)
+                - confidence: میزان اطمینان
+                - duration: مدت زمان صدا
+                - language: زبان تشخیص داده شده
                 
         Raises:
             HTTPException: در صورت خطا در تبدیل
         """
         try:
-            # باز کردن فایل صوتی
-            with open(file_path, "rb") as audio_file:
-                # فراخوانی Whisper API
-                transcript = await self._call_whisper_api(
-                    audio_file,
-                    language
-                )
+            print(f"🔄 شروع transcription: {file_path}")
+            
+            # Transcribe با Whisper
+            result = self.model.transcribe(
+                file_path,
+                language=language,  # فارسی
+                fp16=False,  # برای CPU
+                verbose=False
+            )
             
             # استخراج اطلاعات
-            text = transcript.text
+            text = result["text"].strip()
+            detected_language = result.get("language", language)
             
-            # محاسبه confidence (Whisper مستقیم confidence نمیده، تقریب میزنیم)
-            # بر اساس طول متن و کیفیت
-            confidence = self._estimate_confidence(text)
+            # محاسبه confidence (Whisper مستقیم confidence نمی‌دهد)
+            # از میانگین log probabilities استفاده می‌کنیم
+            segments = result.get("segments", [])
+            if segments:
+                # محاسبه میانگین no_speech_prob (هرچه کمتر، بهتر)
+                avg_no_speech = sum(s.get("no_speech_prob", 0.5) for s in segments) / len(segments)
+                confidence = 1.0 - avg_no_speech  # تبدیل به confidence
+            else:
+                confidence = 0.8  # مقدار پیش‌فرض
             
-            # محاسبه مدت زمان (اگر در دسترس باشد)
-            duration = self._get_audio_duration(file_path)
+            # محاسبه مدت زمان
+            duration = self._get_audio_duration_from_segments(segments)
+            
+            print(f"✅ Transcription موفق: {len(text)} کاراکتر")
             
             return {
                 "text": text,
-                "confidence": confidence,
-                "duration": duration
+                "confidence": round(confidence, 2),
+                "duration": duration,
+                "language": detected_language,
+                "segments_count": len(segments)
             }
             
-        except openai.error.OpenAIError as e:
+        except Exception as e:
+            print(f"❌ خطا در transcription: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"خطا در تبدیل صدا به متن: {str(e)}"
             )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"خطای غیرمنتظره: {str(e)}"
-            )
     
-    async def _call_whisper_api(
-        self,
-        audio_file,
-        language: str
-    ):
+    def _get_audio_duration_from_segments(self, segments: list) -> Optional[float]:
         """
-        فراخوانی API Whisper
+        محاسبه مدت زمان از segments
         
-        Note: این متد sync است چون OpenAI SDK async ندارد
-        """
-        # استفاده از model whisper-1
-        return openai.Audio.transcribe(
-            model=settings.OPENAI_MODEL,
-            file=audio_file,
-            language=language,
-            response_format="text"
-        )
-    
-    def _estimate_confidence(self, text: str) -> float:
-        """
-        تخمین میزان اطمینان بر اساس کیفیت متن
-        
-        فاکتورها:
-        - طول متن
-        - وجود کلمات معنادار
-        - عدم وجود کاراکترهای مشکوک
-        
+        Args:
+            segments: لیست segments از Whisper
+            
         Returns:
-            float: عدد بین 0 تا 1
+            float: مدت زمان به ثانیه
         """
-        if not text or len(text) < 10:
-            return 0.5
+        if not segments:
+            return None
         
-        # بررسی طول (متن‌های کوتاه معمولاً کیفیت پایین‌تری دارند)
-        length_score = min(len(text) / 100, 1.0)
+        # آخرین segment
+        last_segment = segments[-1]
+        duration = last_segment.get("end", 0)
         
-        # بررسی تعداد کلمات
-        words = text.split()
-        word_score = min(len(words) / 20, 1.0)
-        
-        # میانگین
-        confidence = (length_score + word_score) / 2
-        
-        # حداقل 0.7 و حداکثر 0.98
-        return max(0.7, min(confidence, 0.98))
+        return round(duration, 2) if duration else None
     
     def _get_audio_duration(self, file_path: str) -> Optional[float]:
         """
-        محاسبه مدت زمان فایل صوتی
-        
-        استفاده از pydub برای استخراج duration
+        محاسبه مدت زمان فایل صوتی با pydub
         
         Args:
             file_path: مسیر فایل
             
         Returns:
-            float: مدت زمان به ثانیه یا None
+            float: مدت زمان به ثانیه
         """
         try:
             from pydub import AudioSegment
             audio = AudioSegment.from_file(file_path)
-            return len(audio) / 1000.0  # تبدیل میلی‌ثانیه به ثانیه
+            return len(audio) / 1000.0
         except Exception:
-            # اگر خطا داد، None برمی‌گردانیم
             return None
     
     async def delete_audio_file(self, file_path: str) -> bool:
@@ -296,7 +294,8 @@ class VoiceService:
             "file_extension": file_info["file_extension"],
             "transcribed_text": transcription["text"],
             "confidence": transcription["confidence"],
-            "duration": transcription["duration"]
+            "duration": transcription["duration"],
+            "language": transcription["language"]
         }
 
 
