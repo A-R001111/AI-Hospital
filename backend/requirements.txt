@@ -29,12 +29,16 @@ python-dateutil==2.8.2
 email-validator==2.1.0
 
 # ===================================
-# Voice-to-Text - Whisper (Compatible Version)
+# Voice-to-Text - Whisper (Offline)
 # ===================================
 numpy==1.26.4
 torch==1.13.1
 torchaudio==0.13.1
 openai-whisper==20231117
+
+# Alternative lightweight (disabled)
+# SpeechRecognition==3.10.0
+# pocketsphinx==5.0.0
 
 # ===================================
 # File Handling
