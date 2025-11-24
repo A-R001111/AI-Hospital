@@ -1,85 +1,97 @@
-# ===================================
-# Core Web Framework
-# ===================================
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-gunicorn==21.2.0
-python-multipart==0.0.6
+# =====================================
+# Dockerfile for Parspack PaaS
+# نسخه بهینه شده برای حل مشکل Out of Memory - exit code 137
+# =====================================
 
-# ===================================
-# Database & ORM
-# ===================================
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-alembic==1.12.1
-asyncpg==0.29.0
+FROM python:3.11-slim
 
-# ===================================
-# Authentication & Security
-# ===================================
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-pydantic[email]==2.5.0
-pydantic-settings==2.1.0
+# تنظیم متغیرهای محیطی پایتون برای رفتار مطلوب در کانتینر
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DEBIAN_FRONTEND=noninteractive
 
-# ===================================
-# API Documentation
-# ===================================
-python-dateutil==2.8.2
-email-validator==2.1.0
+# آرگومان برای فعال/غیرفعال کردن نصب Torch در زمان build
+ARG INSTALL_TORCH=false
 
-# ===================================
-# Voice-to-Text - Whisper (Offline)
-# ===================================
-numpy==1.26.4
-openai-whisper==20231117
+# =====================================
+# نصب بسته‌های سیستمی به صورت تدریجی (حل مشکل Memory)
+# =====================================
 
-# ===================================
-# File Handling
-# ===================================
-pydub==0.25.1
-python-magic==0.4.27
-ffmpeg-python==0.2.0
+# مرحله 1: نصب dependencies اصلی
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# ===================================
-# Caching & Performance
-# ===================================
-redis==5.0.1
-hiredis==2.2.3
+# مرحله 2: نصب ffmpeg و dependencies مرتبط
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libmagic1 \
+    libgomp1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# ===================================
-# Environment & Config
-# ===================================
-python-dotenv==1.0.0
+# مرحله 3: نصب PostgreSQL client (اختیاری - برای دیباگ)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# ===================================
-# HTTP Client
-# ===================================
-httpx==0.25.1
-aiofiles==23.2.1
+# =====================================
+# ست کردن مسیر کاری
+# =====================================
+WORKDIR /app
 
-# ===================================
-# Testing (Development)
-# ===================================
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
+# کپی requirements قبل از کپی کد برای استفاده از layer caching Docker
+COPY backend/requirements.txt ./backend/requirements.txt
 
-# ===================================
-# Code Quality (Development)
-# ===================================
-black==23.11.0
-flake8==6.1.0
-mypy==1.7.1
-isort==5.12.0
+# ارتقا pip با روش پیشنهادی (python -m pip) و امن‌سازی نصب پکیج‌ها
+RUN python -m pip install --upgrade pip setuptools wheel
 
-# ===================================
-# Monitoring & Logging
-# ===================================
-python-json-logger==2.0.7
+# =====================================
+# نصب اختیاری PyTorch/torchaudio (CPU) از شاخص رسمی PyTorch
+# =====================================
+# نکته: این مرحله تنها زمانی اجرا می‌شود که هنگام build آرگومان INSTALL_TORCH=true ارسال شده باشد.
+RUN if [ "${INSTALL_TORCH}" = "true" ]; then \
+      python -m pip install --no-cache-dir "torch==2.1.1+cpu" "torchaudio==2.1.1+cpu" -f https://download.pytorch.org/whl/torch_stable.html ; \
+    else \
+      echo "Skipping torch install (INSTALL_TORCH not true)"; \
+    fi
 
-# ===================================
-# Rate Limiting
-# ===================================
-slowapi==0.1.9
+# نصب باقی requirements بدون حل مجدد وابستگی‌ها
+RUN python -m pip install --no-cache-dir --no-deps -r ./backend/requirements.txt
 
+# حالا کدهای backend را کپی می‌کنیم
+COPY backend/app ./app
+
+# کپی frontend (در صورت وجود)
+COPY frontend ./frontend
+
+# فولدرهای runtime و تنظیم دسترسی مناسب
+RUN mkdir -p /app/logs /app/uploads && chmod -R 755 /app/logs /app/uploads
+
+# تنظیم PYTHONPATH برای اطمینان از ایمپورت درست ماژول‌ها
+ENV PYTHONPATH=/app
+
+# Health check ساده
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://127.0.0.1:8000/health || exit 1
+
+# پورت اپلیکیشن
+EXPOSE 8000
+
+# =====================================
+# دستور اجرای برنامه - Workers کاهش یافت برای کاهش مصرف حافظه
+# =====================================
+CMD ["gunicorn", "app.main:app", \
+    "--workers", "2", \
+    "--worker-class", "uvicorn.workers.UvicornWorker", \
+    "--bind", "0.0.0.0:8000", \
+    "--access-logfile", "-", \
+    "--error-logfile", "-", \
+    "--log-level", "info", \
+    "--timeout", "120", \
+    "--keep-alive", "5"]
