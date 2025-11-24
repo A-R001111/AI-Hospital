@@ -188,11 +188,25 @@ class User(Base):
     # ========================================
     # رابطه با مدل Report (یک کاربر می‌تواند چندین گزارش داشته باشد)
     # این relation بعداً در مدل Report تعریف می‌شود
-    # reports: Mapped[List["Report"]] = relationship(
-    #     "Report",
-    #     back_populates="nurse",
-    #     cascade="all, delete-orphan"
-    # )
+      # ========================================
+    # Relationships
+    # - reports: گزارش‌هایی که این کاربر (پرستار) ثبت کرده
+    # - reviewed_reports: گزارش‌هایی که این کاربر به عنوان بررسی‌کننده ثبت کرده
+    # ========================================
+    reports: Mapped[List["Report"]] = relationship(
+        "Report",
+        back_populates="nurse",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+    reviewed_reports: Mapped[List["Report"]] = relationship(
+        "Report",
+        back_populates="reviewer",
+        foreign_keys='Report.reviewed_by_id',
+        lazy="selectin"
+    )
+
     
     # ========================================
     # Methods
