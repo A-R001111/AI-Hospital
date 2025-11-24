@@ -1,97 +1,60 @@
 # =====================================
-# Dockerfile for Parspack PaaS
-# نسخه بهینه شده برای حل مشکل Out of Memory - exit code 137
+# backend/requirements.txt
+# نسخه جامع و دقیق برای Parspack PaaS
+# توضیحات خط به خط با کامنت فارسی
 # =====================================
 
-FROM python:3.11-slim
+# فریم‌ورک وب سریع و سبک برای API
+fastapi==0.102.0  # فریم‌ورک اصلی برای توسعه API
 
-# تنظیم متغیرهای محیطی پایتون برای رفتار مطلوب در کانتینر
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    DEBIAN_FRONTEND=noninteractive
+# وب‌سرور ASGI برای اجرای FastAPI
+uvicorn[standard]==0.23.2  # شامل uvloop و httptools برای عملکرد بهتر
 
-# آرگومان برای فعال/غیرفعال کردن نصب Torch در زمان build
-ARG INSTALL_TORCH=false
+# درایور PostgreSQL برای Python
+psycopg2-binary==2.9.7  # اتصال و کار با پایگاه داده PostgreSQL
 
-# =====================================
-# نصب بسته‌های سیستمی به صورت تدریجی (حل مشکل Memory)
-# =====================================
+# درخواست HTTP به سرورهای دیگر یا APIها
+requests==2.31.0  # ارسال درخواست GET/POST و مدیریت پاسخ‌ها
 
-# مرحله 1: نصب dependencies اصلی
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    curl \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# پردازش فایل‌ها و شناسایی نوع MIME
+python-magic==0.4.27  # بررسی نوع فایل‌ها و MIME types
 
-# مرحله 2: نصب ffmpeg و dependencies مرتبط
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libmagic1 \
-    libgomp1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# مدیریت محیط و زمان‌بندی
+python-dotenv==1.0.0  # خواندن فایل‌های .env برای تنظیمات محیطی
 
-# مرحله 3: نصب PostgreSQL client (اختیاری - برای دیباگ)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# ابزارهای کمکی برای مسیرها و فایل‌ها
+python-dateutil==2.8.2  # مدیریت تاریخ و زمان پیشرفته
 
-# =====================================
-# ست کردن مسیر کاری
-# =====================================
-WORKDIR /app
+# پردازش JSON و داده‌ها
+orjson==3.9.12  # سریع‌ترین کتابخانه JSON برای Python
 
-# کپی requirements قبل از کپی کد برای استفاده از layer caching Docker
-COPY backend/requirements.txt ./backend/requirements.txt
+# ابزار امنیتی
+passlib[bcrypt]==1.7.4  # رمزنگاری و مدیریت پسوردها با bcrypt
 
-# ارتقا pip با روش پیشنهادی (python -m pip) و امن‌سازی نصب پکیج‌ها
-RUN python -m pip install --upgrade pip setuptools wheel
+# مدیریت فایل‌های CSV و Excel
+pandas==2.1.1  # پردازش و تحلیل داده‌ها
 
-# =====================================
-# نصب اختیاری PyTorch/torchaudio (CPU) از شاخص رسمی PyTorch
-# =====================================
-# نکته: این مرحله تنها زمانی اجرا می‌شود که هنگام build آرگومان INSTALL_TORCH=true ارسال شده باشد.
-RUN if [ "${INSTALL_TORCH}" = "true" ]; then \
-      python -m pip install --no-cache-dir "torch==2.1.1+cpu" "torchaudio==2.1.1+cpu" -f https://download.pytorch.org/whl/torch_stable.html ; \
-    else \
-      echo "Skipping torch install (INSTALL_TORCH not true)"; \
-    fi
+# پردازش فایل‌های صوتی (در صورت استفاده)
+pydub==0.25.1  # کار با فایل‌های صوتی (mp3, wav و غیره)
 
-# نصب باقی requirements بدون حل مجدد وابستگی‌ها
-RUN python -m pip install --no-cache-dir --no-deps -r ./backend/requirements.txt
+# پردازش فایل‌های PDF و اسناد
+PyPDF2==3.0.1  # خواندن و ویرایش PDF
 
-# حالا کدهای backend را کپی می‌کنیم
-COPY backend/app ./app
+# ابزارهای کمکی برای عملکرد بهتر و کش
+cachetools==5.3.1  # ذخیره‌سازی موقت داده‌ها در حافظه
 
-# کپی frontend (در صورت وجود)
-COPY frontend ./frontend
+# اعتبارسنجی داده‌ها
+pydantic==2.3.0  # اعتبارسنجی و تعریف مدل داده‌ها
 
-# فولدرهای runtime و تنظیم دسترسی مناسب
-RUN mkdir -p /app/logs /app/uploads && chmod -R 755 /app/logs /app/uploads
-
-# تنظیم PYTHONPATH برای اطمینان از ایمپورت درست ماژول‌ها
-ENV PYTHONPATH=/app
-
-# Health check ساده
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://127.0.0.1:8000/health || exit 1
-
-# پورت اپلیکیشن
-EXPOSE 8000
+# کتابخانه‌های اضافی (در صورت نیاز پروژه)
+python-multipart==0.0.6  # برای دریافت فایل از فرم‌های HTML
+email-validator==2.0.0.post1  # اعتبارسنجی ایمیل‌ها
+bcrypt==4.1.0  # رمزنگاری امن پسوردها
+itsdangerous==2.1.2  # تولید توکن امن برای کارهای رمزنگاری
 
 # =====================================
-# دستور اجرای برنامه - Workers کاهش یافت برای کاهش مصرف حافظه
+# نکات مهم:
+# 1- فقط پکیج‌های پایتون در این فایل باشند.
+# 2- هیچ خط Dockerfile یا RUN داخل این فایل نباشد.
+# 3- نسخه‌ها دقیق مشخص شده‌اند تا با Dockerfile سازگار باشند.
 # =====================================
-CMD ["gunicorn", "app.main:app", \
-    "--workers", "2", \
-    "--worker-class", "uvicorn.workers.UvicornWorker", \
-    "--bind", "0.0.0.0:8000", \
-    "--access-logfile", "-", \
-    "--error-logfile", "-", \
-    "--log-level", "info", \
-    "--timeout", "120", \
-    "--keep-alive", "5"]
