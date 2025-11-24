@@ -29,15 +29,12 @@ python-dateutil==2.8.2
 email-validator==2.1.0
 
 # ===================================
-# Voice-to-Text - OFFLINE (Whisper)
+# Voice-to-Text - Whisper (Compatible Version)
 # ===================================
+numpy==1.26.4
+torch==1.13.1
+torchaudio==0.13.1
 openai-whisper==20231117
-torch==2.1.1
-torchaudio==2.1.1
-
-# Alternative: اگر Whisper سنگین بود، از این استفاده کنید:
-# SpeechRecognition==3.10.0
-# pocketsphinx==5.0.0
 
 # ===================================
 # File Handling
