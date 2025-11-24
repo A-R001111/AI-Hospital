@@ -16,10 +16,12 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import async_session_maker
+from app.core.database import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.user import User, UserRole
 from app.services.auth_service import AuthService
+from app.core.database import get_db
+
 
 
 # ========================================
@@ -29,32 +31,6 @@ security = HTTPBearer(
     scheme_name="JWT Authentication",
     description="JWT Bearer Token Authentication"
 )
-
-
-# ========================================
-# Database Session Dependency
-# ========================================
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Dependency برای دریافت database session
-    
-    این dependency در هر endpoint که به دیتابیس نیاز دارد استفاده می‌شود.
-    
-    استفاده:
-    ```python
-    @app.get("/users")
-    async def get_users(db: AsyncSession = Depends(get_db)):
-        # استفاده از db
-    ```
-    
-    Yields:
-        AsyncSession: session دیتابیس
-    """
-    async with async_session_maker() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
 
 
 # ========================================
@@ -132,38 +108,18 @@ async def get_current_user(
 # ========================================
 # Optional User Dependency
 # ========================================
+
+# امنیت اختیاری
+security_optional = HTTPBearer(auto_error=False)
+
 async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
     db: AsyncSession = Depends(get_db)
 ) -> Optional[User]:
-    """
-    Dependency برای دریافت کاربر فعلی (اختیاری)
-    
-    اگر token ارسال نشده باشد، None برمی‌گرداند.
-    برای endpoint‌هایی که authentication اختیاری است.
-    
-    استفاده:
-    ```python
-    @app.get("/public-data")
-    async def get_public_data(
-        current_user: Optional[User] = Depends(get_current_user_optional)
-    ):
-        if current_user:
-            # نمایش داده‌های شخصی‌سازی شده
-        else:
-            # نمایش داده‌های عمومی
-    ```
-    
-    Args:
-        credentials: JWT token از header (اختیاری)
-        db: database session
-        
-    Returns:
-        Optional[User]: کاربر یا None
-    """
+
     if not credentials:
         return None
-    
+
     try:
         return await get_current_user(credentials, db)
     except HTTPException:

@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     AsyncEngine
 )
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool, QueuePool
 from sqlalchemy import event, text
 
@@ -47,38 +47,37 @@ def get_database_url() -> str:
 
 def create_engine() -> AsyncEngine:
     """
-    ایجاد Async Engine برای SQLAlchemy
-    
-    تنظیمات:
-    - Connection Pooling برای بهینه‌سازی performance
-    - Echo برای نمایش SQL queries در development
-    - Pool Pre-ping برای بررسی سلامت connection
-    
-    Returns:
-        AsyncEngine: موتور async دیتابیس
+    ایجاد Async Engine با مدیریت صحیح Pool
     """
-    # انتخاب نوع Pool بر اساس محیط
-    if settings.is_production:
-        poolclass = QueuePool
-        pool_pre_ping = True
-    else:
-        # در development از NullPool استفاده می‌کنیم برای debugging آسان‌تر
-        poolclass = NullPool if settings.DEBUG else QueuePool
-        pool_pre_ping = False
-    
+
+    # انتخاب pool صحیح
+    poolclass = QueuePool if settings.is_production else NullPool
+
+    # پارامترهای Engine در یک dict نگه می‌داریم
+    engine_params = {
+        "echo": settings.DATABASE_ECHO,
+        "future": True,
+        "poolclass": poolclass,
+        "pool_pre_ping": True,
+        "pool_recycle": 3600,
+        "pool_timeout": 30,
+    }
+
+    # اگر از QueuePool استفاده شود، این مقادیر مجاز هستند
+    if poolclass is QueuePool:
+        engine_params.update({
+            "pool_size": settings.DATABASE_POOL_SIZE,
+            "max_overflow": settings.DATABASE_MAX_OVERFLOW
+        })
+
+    # ساخت engine
     engine = create_async_engine(
         get_database_url(),
-        echo=settings.DATABASE_ECHO,  # نمایش SQL queries
-        future=True,  # استفاده از API جدید SQLAlchemy 2.0
-        pool_size=settings.DATABASE_POOL_SIZE,  # تعداد connection های ثابت در pool
-        max_overflow=settings.DATABASE_MAX_OVERFLOW,  # حداکثر connection اضافی
-        pool_pre_ping=pool_pre_ping,  # بررسی سلامت connection قبل از استفاده
-        poolclass=poolclass,
-        pool_recycle=3600,  # بازسازی connection ها بعد از 1 ساعت
-        pool_timeout=30,  # timeout برای گرفتن connection از pool
+        **engine_params
     )
-    
+
     return engine
+
 
 
 # ========================================
@@ -98,7 +97,10 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 # Base class برای مدل‌های ORM
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """Base class جدید برای مدل‌ها"""
+    pass
 
 
 # ========================================
@@ -107,38 +109,16 @@ Base = declarative_base()
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    Dependency برای دریافت database session در endpoint ها
-    
-    این تابع یک async context manager است که session را ایجاد کرده،
-    در اختیار endpoint قرار می‌دهد، و در نهایت آن را close می‌کند.
-    
-    در صورت بروز خطا، transaction به صورت خودکار rollback می‌شود.
-    
-    Yields:
-        AsyncSession: نشست دیتابیس
-        
-    Example در endpoint:
-        >>> @app.get("/users")
-        >>> async def get_users(db: AsyncSession = Depends(get_db)):
-        >>>     result = await db.execute(select(User))
-        >>>     return result.scalars().all()
+    مدیریت session: باز کردن، yield، commit، rollback، بستن خودکار
     """
     async with AsyncSessionLocal() as session:
         try:
-            # ارائه session به endpoint
             yield session
-            
-            # اگر تا اینجا خطایی نبود، commit می‌کنیم
             await session.commit()
-            
-        except Exception:
-            # در صورت خطا، rollback می‌کنیم
+        except:
             await session.rollback()
             raise
-            
-        finally:
-            # در هر صورت session را close می‌کنیم
-            await session.close()
+
 
 
 # ========================================
@@ -227,15 +207,28 @@ async def get_db_version() -> Optional[str]:
 # Event Listeners
 # ========================================
 
+# @event.listens_for(engine.sync_engine, "connect")
+# def set_sqlite_pragma(dbapi_conn, connection_record):
+#     """
+#     تنظیمات اضافی در زمان اتصال
+    
+#     این event listener در زمان ایجاد هر connection اجرا می‌شود.
+#     """
+#     # تنظیمات خاص PostgreSQL می‌تواند اینجا اضافه شود
+#     pass
+
 @event.listens_for(engine.sync_engine, "connect")
 def set_sqlite_pragma(dbapi_conn, connection_record):
     """
-    تنظیمات اضافی در زمان اتصال
-    
-    این event listener در زمان ایجاد هر connection اجرا می‌شود.
+    اجرای PRAGMA فقط برای SQLite، نه PostgreSQL
     """
-    # تنظیمات خاص PostgreSQL می‌تواند اینجا اضافه شود
-    pass
+    if "sqlite" not in str(engine.url):
+        return  # اگر SQLite نبود، هیچی اجرا نشود
+
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON;")
+    cursor.execute("PRAGMA busy_timeout=30000;")
+    cursor.close()
 
 
 @event.listens_for(engine.sync_engine, "close")
