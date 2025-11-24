@@ -96,12 +96,4 @@ EXPOSE 8000
 # دستور اجرای برنامه — Gunicorn با Uvicorn worker
 # تعداد worker=2 برای کاهش مصرف حافظه در محیط محدود
 # =====================================
-CMD ["gunicorn", "app.main:app",
-     "--workers", "2",
-     "--worker-class", "uvicorn.workers.UvicornWorker",
-     "--bind", "0.0.0.0:8000",
-     "--access-logfile", "-",
-     "--error-logfile", "-",
-     "--log-level", "info",
-     "--timeout", "120",
-     "--keep-alive", "5"]
+CMD ["gunicorn","app.main:app","--workers","2","--worker-class","uvicorn.workers.UvicornWorker","--bind","0.0.0.0:8000","--access-logfile","-","--error-logfile","-","--log-level","info","--timeout","120","--keep-alive","5"]
